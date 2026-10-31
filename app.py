@@ -1,4 +1,4 @@
-"""
+﻿"""
 Gene Lookup Tool
 ----------------
 A Streamlit web app that searches the Ensembl REST API for gene
@@ -51,7 +51,7 @@ SEQUENCE_OPTIONS = {
 # API helpers (cached so repeat lookups don't hammer Ensembl)
 # ---------------------------------------------------------------------
 
-def _get(path: str, params: dict | None = None, timeout: int = 30):
+def _get(path: str, params: dict | None = None, timeout: int = 60):
     """GET from Ensembl.
 
     Returns the response, or None when Ensembl says the symbol/ID doesn't
@@ -68,15 +68,15 @@ def _get(path: str, params: dict | None = None, timeout: int = 30):
 
 
 @st.cache_data(show_spinner=False, ttl=3600)
-def symbol_to_id(species: str, symbol: str) -> str | None:
-    """Resolve a gene symbol (e.g. BRCA1) to an Ensembl gene ID."""
+def lookup_symbol(species: str, symbol: str) -> dict | None:
+    """Full gene record (with transcripts) from a gene symbol like BRCA1.
+
+    One request does both jobs: it resolves the symbol and returns the record.
+    """
     resp = _get(
-        f"/xrefs/symbol/{species}/{quote(symbol)}", params={"object_type": "gene"}
+        f"/lookup/symbol/{species}/{quote(symbol)}", params={"expand": 1}
     )
-    if resp is None:
-        return None
-    data = resp.json()
-    return data[0]["id"] if data else None
+    return resp.json() if resp is not None else None
 
 
 @st.cache_data(show_spinner=False, ttl=3600)
@@ -100,12 +100,12 @@ def get_xrefs(gene_id: str) -> list:
     return resp.json() if resp is not None else []
 
 
-def resolve_input(species: str, query: str) -> str | None:
-    """Accept either a gene symbol or an Ensembl ID and return an Ensembl ID."""
+def find_gene(species: str, query: str) -> dict | None:
+    """Accept either a gene symbol or an Ensembl ID and return the gene record."""
     query = query.strip()
     if query.upper().startswith("ENS"):
-        return query
-    return symbol_to_id(species, query)
+        return lookup_gene(query)
+    return lookup_symbol(species, query)
 
 
 def canonical_transcript_id(gene: dict) -> str | None:
@@ -128,10 +128,11 @@ def show_gene(gene: dict) -> None:
 
     # --- Summary ---
     st.subheader("Overview")
-    c1, c2, c3 = st.columns(3)
-    c1.metric("Ensembl ID", gene_id or "—")
-    c2.metric("Biotype", gene.get("biotype", "—"))
-    c3.metric("Strand", "+" if gene.get("strand") == 1 else "−")
+    c1, c2, c3 = st.columns([3, 3, 2])
+    c1.markdown(f"**Ensembl ID**  \n`{gene_id}`")
+    c2.markdown(f"**Biotype**  \n`{gene.get('biotype', '-')}`")
+    c3.markdown(f"**Strand**  \n`{'+' if gene.get('strand') == 1 else '-'}`")
+  
 
     st.markdown(f"**Description:** {gene.get('description', 'No description available.')}")
     start, end = gene.get("start"), gene.get("end")
@@ -233,15 +234,12 @@ if submitted:
     else:
         try:
             with st.spinner("Querying Ensembl..."):
-                gene_id = resolve_input(SPECIES[species_label], query)
-                gene = lookup_gene(gene_id) if gene_id else None
-        except requests.RequestException:
+                gene = find_gene(SPECIES[species_label], query)
+        except requests.RequestException as err:
             st.error("Couldn't reach Ensembl. Check your connection and try again.")
         else:
-            if not gene_id:
+            if not gene:
                 st.error(f"No match found for '{query}' in {species_label}.")
-            elif not gene:
-                st.error(f"Couldn't retrieve details for {gene_id}.")
             else:
                 st.session_state["gene"] = gene
 
