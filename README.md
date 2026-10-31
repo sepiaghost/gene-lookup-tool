@@ -7,7 +7,15 @@ Built with Python and [Streamlit](https://streamlit.io/), using the [Ensembl RES
 <!-- Add a screenshot: save it as screenshot.png in this folder, then uncomment the next line -->
 <!-- ![Gene Lookup Tool screenshot](screenshot.png) -->
 
-**Live demo:** _add your Streamlit Community Cloud link here once deployed_
+**Live demo:** _ 
+
+https://github.com/user-attachments/assets/090d14e3-762e-4623-be5a-139bb4340a3c
+
+
+
+
+
+
 
 ## Features
 
